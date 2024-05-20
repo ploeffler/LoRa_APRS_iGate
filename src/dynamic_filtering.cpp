@@ -18,7 +18,10 @@ typedef struct
     double lon = 0;
     int group = 0;
     String raw = "";
+    unsigned long timestamp = 0;
 } mh_entry;
+
+
 class dynamicfilter
 {
 public:
@@ -39,6 +42,7 @@ public:
     void dynamicfilter::run()
     {
         String oldfilter = this->dynfilter;
+        this->mhlisttimeout();
         if (this->config['mode'] == "singel")
         {
             this->process_single();
@@ -88,12 +92,14 @@ public:
     {
         // add a positionpacket to the list of mheard stations
         mh_entry thisentry = this->get_mhentry_from_APRS(packet);
+        thisentry.timestamp = millis();
         bool isold = false;
         for (int i; i < sizeof(this->mhlist); i++)
         {
             if (this->mhlist[i].call = thisentry.call)
             {
                 this->mhlist[i] = thisentry;
+
                 isold = true;
             }
         }
@@ -108,26 +114,12 @@ public:
         }
     }
 
-    void dynamicfilter::delFromList(String packet)
+    void dynamicfilter::delFromListPacket(String packet)
     {
         // remove a station from mheard list
         mh_entry thisentry = this->get_mhentry_from_APRS(packet);
-
-        for (int i; i < sizeof(this->mhlist); i++)
-        {
-            if (this->mhlist[i].call = thisentry.call)
-            {
-                for (int j = i + 1; j < sizeof(this->mhlist); j++)
-                {
-                    this->mhlist[j - 1] = this->mhlist[j];
-                }
-            }
-        }
-        this->inputupdated = true;
-        if (!this->backgroundmode)
-        {
-            this->run();
-        }
+        this->delFromListCall(thisentry.call);
+        
     }
 
     String dynamicfilter::getFilterCommand()
@@ -154,7 +146,7 @@ public:
         return this->filterupdated;
     }
 
-    bool dynamicfilter::isinmhlist(String call)
+    bool dynamicfilter::isinmhlistcall(String call)
     {
         for (int i = 0; i < sizeof(this->mhlist); i++)
         {
@@ -166,6 +158,24 @@ public:
         return false;
     }
 
+    bool dynamicfilter::isinmhlistpacket(String packet)
+    {
+        mh_entry thisentry = this->get_mhentry_from_APRS(packet);
+        return this->isinmhlistcall(thisentry.call);
+    }
+    
+
+
+    void dynamicfilter::mhlisttimeout()
+    {
+        unsigned long now = millis();
+        if((now - this->mhlist[0].timestamp)/60000 > 15) {
+            this->delFromListCall(this->mhlist[0].call);
+        }
+        this->inputupdated = true;
+        
+
+    }
 private:
     String inifilter = "";
     String dynfilter = "";
@@ -273,8 +283,28 @@ private:
         int X4 = int(encodedLongtitude[3]);
         thisentry.lon = -180.0 + ((((X1 - 33) * pow(91, 3)) + ((X2 - 33) * pow(91, 2)) + ((X3 - 33) * 91) + X4 - 33) / 190463.0);
         thisentry.raw = packet;
-
+        thisentry.timestamp = millis();
         return thisentry;
+    }
+
+    void dynamicfilter::delFromListCall(String call)
+    {
+        for (int i; i < sizeof(this->mhlist); i++)
+        {
+            if (this->mhlist[i].call = call)
+            {
+                for (int j = i + 1; j < sizeof(this->mhlist); j++)
+                {
+                    this->mhlist[j - 1] = this->mhlist[j];
+                }
+                this->mhlist[sizeof(this->mhlist)-1] = mh_entry();
+            }
+        }
+        this->inputupdated = true;
+        if (!this->backgroundmode)
+        {
+            this->run();
+        }
     }
 };
 

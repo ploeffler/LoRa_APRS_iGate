@@ -55,22 +55,37 @@ public:
     /* returns true if transmission of the packet is in the throtteling limits */
     bool isThrottleFree();
 
-    /* delete a callsing(incl. SSID) from all lists*/
-    void delFromList(String call);
+    
 
     /* returns the filtercommand in the form of "filter f/.... r/.... initialfilter"*/
     String getFilterCommand();
 
     /* changes from/to backgroundmode */
     void set_backgroundmode(bool mode);
-
+    
+    /*returns array of circle positions with name,lat,lon,range */
     mh_group *getCircles(void);
 
+    /*returns true if the filters were updated*/
     bool hasnewfilter(void);
 
-    bool isinmhlist(String call);
 
+    /* returns true if the call+ssid is in the mh_list*/
+    bool isinmhlistcall(String call);
+
+    /* returns true if the call+ssid is in the mh_list*/
+    bool isinmhlistpacket(String packet);
+
+    /* adds or updates an entry in the mh_list*/
     void addToList(String packet);
+
+    
+
+    void delFromListPacket(String packet);
+
+    /* updates the mhlist if oldest is timeouted */
+    void mhlisttimeout();
+    
 
 private:
     String inifilter;
@@ -97,6 +112,10 @@ private:
     mh_group getmiddle(double lat1, double lon1, double lat2, double lon2);
     unsigned long throttle[];
     mh_entry get_mhentry_from_APRS(String packet);
+
+    /* delete a callsing(incl. SSID) from all lists*/
+    void delFromListCall(String call);
+    
 };
 
 #endif
