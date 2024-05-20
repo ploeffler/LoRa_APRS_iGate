@@ -22,17 +22,36 @@ class dynamicfilter
     
     void dynamicfilter::run() {
         // in the loop of the second core we process
-        if(this->config['mode']=="singel" && sizeof(this->mhlist) < this->config['group']['lowerlimit']) {
+        if(this->config['mode']=="singel" ) {
             this->process_single();
         }
-        if(this->config['mode']=="group") {
+
+
+        if(this->config['mode']=="group" && sizeof(this->mhlist) < this->config['group']['lowerlimit']) {
+            this->process_single();
+        } else {
             this->process_groups();
         }
+
+        this->inputupdated = false;
     }
     
-    bool dynamicfilter::isThrotleFree()
+    bool dynamicfilter::isThrottleFree()
     {
-        // returns true if we are in the throtle-limits
+        // returns true if we are in the throttle-limits
+        unsigned long now = millis();
+        if(((now - this->throttle[0])/60000) > this->config["throttle"]["minutes"]) {
+            for(int i = 1; i < sizeof(this->throttle); i++) {
+                this->throttle[i-1] = this->throttle[i];
+            }
+            this->throttle[sizeof(this->throttle)-1] = char(0);
+
+        }
+        if(sizeof(this->throttle) < sizeof(this->config["throttle"]["packets"])) {
+            this->throttle[sizeof(this->throttle)] = now;
+            return true;
+        } 
+
         return false;
     }
     void dynamicfilter::addToList(String packet)
@@ -41,12 +60,22 @@ class dynamicfilter
         
         
         this->inputupdated=true;
+        if(!this->backgroundmode) {
+            this->run();
+        }
     }
 
     void dynamicfilter::delFromList(String packet)
     {
         // remove a station from mheard list
+
+
+
+
         this->inputupdated=true;
+        if(!this->backgroundmode) {
+            this->run();
+        }
     }
     
     
@@ -70,7 +99,7 @@ class dynamicfilter
         double lat = 0;
         double lon = 0;
         int group = 0;
-        String raw="";
+        String raw= "";
     } mh_entry;
     typedef struct {
         double lat = 0;
@@ -78,7 +107,7 @@ class dynamicfilter
     } mh_group ;
     mh_group mhgroup[9];
     mh_entry mhlist[20];
-    unsigned long throttle[];
+    unsigned long throttle[0];
 
     void dynamicfilter::process_single() {
         this->dynfilter="";
