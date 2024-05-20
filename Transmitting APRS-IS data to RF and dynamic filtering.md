@@ -28,11 +28,19 @@ The "9 user limit" can rather fast be reached, here kicks in the "group" setting
     },
 "single" = {
     "radius" = "10" # kilometers
-    }
+    },
 "group" = {
-    "radius" = "10", # kilometers
+    "radius" = "5", # kilometers
     "inrange" = "3", # kilometers
     "lowerlimit" = "3"
     }
 }
 ```
+
+## The "testing" option
+
+This generates Circle-objects, representing the "group". The object-name is generated from the last 4 charecters of your deviceID and the group number.
+
+## Why "dynamic filtering"
+
+With the "filter" settings in the aprs-is section of the config you can apply some of the infos you would like to have always on air. This could be a m/1 for example, to always transmit the position packets of repeaters, that are directly beside your iGate. More information is only on-the-air, when there is the need for it, at least one user sending his position.
