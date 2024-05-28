@@ -20,26 +20,13 @@ expects the part "dynamicfilters" of the igate_config.json like this
     }
 }
 
-
-
-
 */
-typedef struct
-{
-    String name = "";
-    double lat = 0;
-    double lon = 0;
-    int range = 0;
-} mh_group;
 
-typedef struct
-{
-    String call = "";
+struct latlon {
     double lat;
     double lon;
-    int group = 0;
-    String raw = "";
-} mh_entry;
+};
+
 class dynamicfilter
 {
 public:
@@ -115,6 +102,7 @@ private:
 
     /* delete a callsing(incl. SSID) from all lists*/
     void delFromListCall(String call);
+    latlon getCenter();
     
 };
 

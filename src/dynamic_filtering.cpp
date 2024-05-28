@@ -1,17 +1,19 @@
 #ifndef DYNAMIC__FILTERING_H
 #define DYNAMIC__FILTERING_H
 #include <ArduinoJson.h>
-#include "dynamic_filtering.h"
+#include <dynamic_filtering.h>
 #include <digi_utils.h>
+#include <vector>
+#include <stdlib.h>
 
-typedef struct
+struct mh_group
 {
     String name = "";
     double lat = 0;
     double lon = 0;
     int range = 0;
-} mh_group;
-typedef struct
+};
+struct mh_entry
 {
     String call = "";
     double lat = 0;
@@ -19,8 +21,22 @@ typedef struct
     int group = 0;
     String raw = "";
     unsigned long timestamp = 0;
-} mh_entry;
+};
 
+
+struct latlon {
+    double lat;
+    double lon;
+};
+
+struct th_entry
+{
+    unsigned long timestamp = 0;
+};
+
+typedef std::vector<mh_group> MHGROUP;
+typedef std::vector<mh_entry> MHLIST;
+typedef std::vector<th_entry> THLIST;
 
 class dynamicfilter
 {
@@ -71,18 +87,21 @@ public:
     bool dynamicfilter::isThrottleFree(void)
     {
         // returns true if we are in the throttle-limits
-        unsigned long now = millis();
-        if (((now - this->throttle[0]) / 60000) > this->config["throttle"]["minutes"])
+        unsigned long tsnow = millis();
+        th_entry nowentry;
+        nowentry.timestamp = tsnow;
+        // remove oldest from list if outside minutes
+        if (((nowentry.timestamp - this->throttle.at(0).timestamp) / 60000) > this->config["throttle"]["minutes"])
         {
-            for (int i = 1; i < sizeof(this->throttle); i++)
-            {
-                this->throttle[i - 1] = this->throttle[i];
-            }
-            this->throttle[sizeof(this->throttle) - 1] = char(0);
+            // remove oldest from list
+            this->throttle.erase(this->throttle.begin());
         }
+
+        // true if we are lower packets limit
         if (sizeof(this->throttle) < sizeof(this->config["throttle"]["packets"]))
         {
-            this->throttle[sizeof(this->throttle)] = now;
+            // add nowtimestamp at the end of throttle
+            this->throttle.push_back(nowentry);
             return true;
         }
 
@@ -96,16 +115,17 @@ public:
         bool isold = false;
         for (int i; i < sizeof(this->mhlist); i++)
         {
-            if (this->mhlist[i].call = thisentry.call)
+
+            if (this->mhlist.at(i).call == thisentry.call)
             {
-                this->mhlist[i] = thisentry;
+                this->mhlist.at(i) = thisentry;
 
                 isold = true;
             }
         }
         if (!isold)
         {
-            this->mhlist[sizeof(this->mhlist)] = thisentry;
+            this->mhlist.push_back(thisentry);
         }
         this->inputupdated = true;
         if (!this->backgroundmode)
@@ -119,7 +139,6 @@ public:
         // remove a station from mheard list
         mh_entry thisentry = this->get_mhentry_from_APRS(packet);
         this->delFromListCall(thisentry.call);
-        
     }
 
     String dynamicfilter::getFilterCommand()
@@ -135,7 +154,7 @@ public:
         this->backgroundmode = mode;
     }
 
-    mh_group *dynamicfilter::getCircles()
+    MHGROUP dynamicfilter::getCircles()
     {
 
         return this->mhgroup;
@@ -150,7 +169,7 @@ public:
     {
         for (int i = 0; i < sizeof(this->mhlist); i++)
         {
-            if (this->mhlist[i].call == call)
+            if (this->mhlist.at(i).call == call)
             {
                 return true;
             }
@@ -163,19 +182,17 @@ public:
         mh_entry thisentry = this->get_mhentry_from_APRS(packet);
         return this->isinmhlistcall(thisentry.call);
     }
-    
-
 
     void dynamicfilter::mhlisttimeout()
     {
         unsigned long now = millis();
-        if((now - this->mhlist[0].timestamp)/60000 > 15) {
+        if ((now - this->mhlist[0].timestamp) / 60000 > 15)
+        {
             this->delFromListCall(this->mhlist[0].call);
         }
         this->inputupdated = true;
-        
-
     }
+
 private:
     String inifilter = "";
     String dynfilter = "";
@@ -183,10 +200,12 @@ private:
     bool inputupdated = false;
     bool filterupdated = false;
     bool backgroundmode = true;
+    double group_inrange = 0;
+    double single_radius = 0;
 
-    mh_group mhgroup[9];
-    mh_entry mhlist[20];
-    unsigned long throttle[0];
+    MHGROUP mhgroup;
+    MHLIST mhlist;
+    THLIST throttle;
 
     /*#####################################*/
 
@@ -200,7 +219,7 @@ private:
 
         for (int i = 0; i < sizeof(mhlist) || i < 8; i++)
         {
-            this->dynfilter = this->dynfilter + "f/" + this->mhlist[i].call + "/" + this->config['singel']['radius'] + " ";
+            this->dynfilter = this->dynfilter + "f/" + this->mhlist.at(i).call + "/" + this->single_radius + " ";
         }
 
         this->dynfilter += this->inifilter;
@@ -208,14 +227,60 @@ private:
     }
     void dynamicfilter::process_groups()
     {
-
+        // delet all groupinfo in mhlist
         for (int i = 0; i < sizeof(this->mhlist); i++)
         {
-            this->mhlist[i].group = 0;
+            this->mhlist.at(i).group = 0;
         }
+        // remove all groups
+        this->mhgroup.clear();
 
+        // iterate through all entrys
         for (int i = 0; i < sizeof(this->mhlist); i++)
         {
+            // iterate through all groups if there are any already
+            if (mhgroup.size() > 0 && this->mhlist.at(i).group == 0)
+            {
+                for (int g = 0; g < mhgroup.size(); g++)
+                {
+                    //chech distance between mh_entry and group
+                    if (this->getDistance(this->mhlist.at(i).lat, this->mhlist.at(i).lon, this->mhgroup.at(g).lat, this->mhgroup.at(g).lon) < this->group_inrange)
+                    {
+                        // add entry to existing group
+                        this->mhlist.at(i).group = g;
+                    }
+                }
+            }
+
+            //iterate through all entries
+            if (i + 1 < this->mhlist.size())
+            {
+                for (int y = i + 1; y < this->mhlist.size(); y++)
+                {
+                    //check if y has already a group
+                    if( ! this->mhlist.at(y).group > 0) {
+                    if (this->getDistance(this->mhlist.at(i).lat, this->mhlist.at(i).lon, this->mhlist.at(y).lat, this->mhlist.at(y).lon) < this->group_inrange)
+                    {
+                        // found a new group member
+                        if(!this->mhlist.at(i).group == 0) {
+                          this->mhlist.at(y).group = this->mhlist.at(i).group   ;  
+
+                        } else {
+                        //found a new group
+                        this->mhlist.at(y).group = this->mhgroup.size()+1;
+                        this->mhlist.at(i).group = this->mhgroup.size()+1;
+                        latlon center = this->getCenter(this->mhlist.at(y).lat,this->mhlist.at(y).lon,this->mhlist.at(i).lat, this->mhlist.at(i).lon );
+                        mh_group newgroup;
+                        newgroup.lat = center.lat;
+                        newgroup.lon = center.lon;
+                        newgroup.name = "Cluster "+this->mhgroup.size()+1;
+                        mhgroup.push_back(newgroup);
+                        }
+                    }
+                    }
+                }
+            }
+            /*
             if (sizeof(mh_group) == 0 && i == 0)
             {
                 this->mhgroup[0].lat = this->mhlist[0].lat;
@@ -231,6 +296,7 @@ private:
                     }
                 }
             }
+            */
         }
 
         this->dynfilter += this->inifilter;
@@ -297,7 +363,7 @@ private:
                 {
                     this->mhlist[j - 1] = this->mhlist[j];
                 }
-                this->mhlist[sizeof(this->mhlist)-1] = mh_entry();
+                this->mhlist[sizeof(this->mhlist) - 1] = mh_entry();
             }
         }
         this->inputupdated = true;
@@ -305,6 +371,13 @@ private:
         {
             this->run();
         }
+    }
+    latlon dynamicfilter::getCenter(double lat1, double lon1, double lat2, double lon2)
+    {
+        latlon center;
+        center.lat = (lat1 + lat2) / 2;
+        center.lon = (lon1 + lon2) / 2;
+        return center;
     }
 };
 
