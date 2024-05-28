@@ -8,7 +8,7 @@
 
 
 struct SETUP {
-    String mode;
+    String mode = "";
     bool testing;
     int throttle_packets;
     int throttle_minutes;
@@ -55,16 +55,18 @@ public:
     dynamicfilter::dynamicfilter(String initialfilter, String config, bool backgroundmode = true)
     {
         this->inifilter = initialfilter;
-        DeserializationError error = deserializeJson(this->config, config);
-        this->throttle[this->config["throttle"]["packets"]];
+        StaticJsonDocument<512> tempconfig;
+        DeserializationError error = deserializeJson(tempconfig, config);
+        
         this->backgroundmode = backgroundmode;
-        myconfig.group_inrange = this->config["group"]["inrange"];
-        myconfig.group_lowerlimit = this->config["group"]["lowerlimit"];
-        myconfig.group_radius = this->config["group"]["radius"];
-        myconfig.mode = (this->config["mode"]);
-        myconfig.testing = bool(this->config["testing"]);
-        myconfig.single_radius = this->config["single"]["radius"];
-
+        myconfig.group_inrange = tempconfig["group"]["inrange"];
+        myconfig.group_lowerlimit = tempconfig["group"]["lowerlimit"];
+        myconfig.group_radius = tempconfig["group"]["radius"];
+        myconfig.mode = tempconfig["mode"];
+        myconfig.testing = bool(tempconfig["testing"]);
+        myconfig.single_radius = tempconfig["single"]["radius"];
+        myconfig.throttle_minutes = tempconfig["throttle"]["minutes"];
+        myconfig.throttle_packets = tempconfig["throttle"]["packets"];    
 
     }
 
@@ -215,7 +217,7 @@ public:
 private:
     String inifilter = "";
     String dynfilter = "";
-    StaticJsonDocument<512> config;
+    
     bool inputupdated = false;
     bool filterupdated = false;
     bool backgroundmode = true;
