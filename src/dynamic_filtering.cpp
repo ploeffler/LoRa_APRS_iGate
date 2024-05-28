@@ -6,8 +6,8 @@
 #include <vector>
 #include <stdlib.h>
 
-
-struct SETUP {
+struct SETUP
+{
     String mode = "";
     bool testing;
     int throttle_packets;
@@ -16,7 +16,7 @@ struct SETUP {
     int group_radius;
     int group_inrange;
     int group_lowerlimit;
-}; 
+};
 struct mh_group
 {
     String name = "";
@@ -34,8 +34,8 @@ struct mh_entry
     unsigned long timestamp = 0;
 };
 
-
-struct latlon {
+struct latlon
+{
     double lat;
     double lon;
 };
@@ -57,7 +57,7 @@ public:
         this->inifilter = initialfilter;
         StaticJsonDocument<512> tempconfig;
         DeserializationError error = deserializeJson(tempconfig, config);
-        
+
         this->backgroundmode = backgroundmode;
         myconfig.group_inrange = tempconfig["group"]["inrange"];
         myconfig.group_lowerlimit = tempconfig["group"]["lowerlimit"];
@@ -66,8 +66,7 @@ public:
         myconfig.testing = bool(tempconfig["testing"]);
         myconfig.single_radius = tempconfig["single"]["radius"];
         myconfig.throttle_minutes = tempconfig["throttle"]["minutes"];
-        myconfig.throttle_packets = tempconfig["throttle"]["packets"];    
-
+        myconfig.throttle_packets = tempconfig["throttle"]["packets"];
     }
 
     bool dynamicfilter::needsrun()
@@ -217,7 +216,7 @@ public:
 private:
     String inifilter = "";
     String dynfilter = "";
-    
+
     bool inputupdated = false;
     bool filterupdated = false;
     bool backgroundmode = true;
@@ -233,7 +232,7 @@ private:
     void dynamicfilter::process_single()
     {
         this->dynfilter = "";
-        for (int i = 0; i < sizeof(mhlist); i++)
+        for (int i = 0; i < this->mhlist.size(); i++)
         {
             mhlist[i].group = 0;
         }
@@ -264,7 +263,7 @@ private:
             {
                 for (int g = 0; g < mhgroup.size(); g++)
                 {
-                    //chech distance between mh_entry and group
+                    // chech distance between mh_entry and group
                     if (this->getDistance(this->mhlist.at(i).lat, this->mhlist.at(i).lon, this->mhgroup.at(g).lat, this->mhgroup.at(g).lon) < this->myconfig.group_inrange)
                     {
                         // add entry to existing group
@@ -272,47 +271,50 @@ private:
                         latlon newcenter = this->getCenter(this->mhlist.at(i).lat, this->mhlist.at(i).lon, this->mhgroup.at(g).lat, this->mhgroup.at(g).lon);
                         this->mhgroup.at(g).lat = newcenter.lat;
                         this->mhgroup.at(g).lon = newcenter.lon;
-                        
                     }
                 }
             }
 
-            //iterate through all entries
+            // iterate through all entries
             if (i + 1 < this->mhlist.size())
             {
+                // iterate through all entries+1=y
                 for (int y = i + 1; y < this->mhlist.size(); y++)
                 {
-                    //check if y has already a group
-                    if( ! this->mhlist.at(y).group > 0) {
-                    if (this->getDistance(this->mhlist.at(i).lat, this->mhlist.at(i).lon, this->mhlist.at(y).lat, this->mhlist.at(y).lon) < this->myconfig.group_inrange)
+                    // check if y has already a group
+                    if (!this->mhlist.at(y).group > 0)
                     {
-                        // found a new group member
-                        if(!this->mhlist.at(i).group == 0) {
-                          this->mhlist.at(y).group = this->mhlist.at(i).group   ; 
-                        latlon newcenter = this->getCenter(this->mhlist.at(i).lat, this->mhlist.at(i).lon, this->mhgroup.at(this->mhlist.at(y).group).lat, this->mhgroup.at(this->mhlist.at(y).group).lon);
-                        this->mhgroup.at(y).lat = newcenter.lat;
-                        this->mhgroup.at(y).lon = newcenter.lon;  
-
-                        } else {
-                        //found a new group
-                        this->mhlist.at(y).group = this->mhgroup.size()+1;
-                        this->mhlist.at(i).group = this->mhgroup.size()+1;
-                        latlon center = this->getCenter(this->mhlist.at(y).lat,this->mhlist.at(y).lon,this->mhlist.at(i).lat, this->mhlist.at(i).lon );
-                        mh_group newgroup;
-                        newgroup.lat = center.lat;
-                        newgroup.lon = center.lon;
-                        newgroup.name = "Cluster "+this->mhgroup.size()+1;
-                        mhgroup.push_back(newgroup);
+                        if (this->getDistance(this->mhlist.at(i).lat, this->mhlist.at(i).lon, this->mhlist.at(y).lat, this->mhlist.at(y).lon) < this->myconfig.group_inrange)
+                        {
+                            // found a new group member
+                            if (!this->mhlist.at(i).group == 0)
+                            {
+                                this->mhlist.at(y).group = this->mhlist.at(i).group;
+                                latlon newcenter = this->getCenter(this->mhlist.at(i).lat, this->mhlist.at(i).lon, this->mhgroup.at(this->mhlist.at(y).group).lat, this->mhgroup.at(this->mhlist.at(y).group).lon);
+                                this->mhgroup.at(y).lat = newcenter.lat;
+                                this->mhgroup.at(y).lon = newcenter.lon;
+                            }
+                            else
+                            {
+                                // found a new group
+                                this->mhlist.at(y).group = this->mhgroup.size() + 1;
+                                this->mhlist.at(i).group = this->mhgroup.size() + 1;
+                                latlon center = this->getCenter(this->mhlist.at(y).lat, this->mhlist.at(y).lon, this->mhlist.at(i).lat, this->mhlist.at(i).lon);
+                                mh_group newgroup;
+                                newgroup.lat = center.lat;
+                                newgroup.lon = center.lon;
+                                newgroup.name = "Cluster " + this->mhgroup.size() + 1;
+                                mhgroup.push_back(newgroup);
+                            }
                         }
-                    }
                     }
                 }
             }
-            //build the grousfilter
+            // build the grousfilter
             for (int i = 0; i < this->mhgroup.size(); i++)
-        {
-            this->dynfilter = this->dynfilter + "r/" + this->mhgroup.at(i).lat + "/" + this->mhgroup.at(i).lon + "/"+ this->myconfig.group_radius + " ";
-        }
+            {
+                this->dynfilter = this->dynfilter + "r/" + this->mhgroup.at(i).lat + "/" + this->mhgroup.at(i).lon + "/" + this->myconfig.group_radius + " ";
+            }
         }
 
         this->dynfilter += this->inifilter;
