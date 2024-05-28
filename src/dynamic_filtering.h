@@ -21,7 +21,16 @@ expects the part "dynamicfilters" of the igate_config.json like this
 }
 
 */
-
+struct SETUP {
+    String mode;
+    bool testing;
+    int throttle_packets;
+    int throttle_minutes;
+    int single_radius;
+    int group_radius;
+    int group_inrange;
+    int group_lowerlimit;
+}; 
 struct latlon {
     double lat;
     double lon;
@@ -88,6 +97,9 @@ private:
         int group = 0;
         String raw = "";
     } mh_entry;
+    double group_inrange;
+    double single_radius;
+
     mh_entry mhlist[20];
 
     mh_group mhgroup[9];

@@ -6,6 +6,17 @@
 #include <vector>
 #include <stdlib.h>
 
+
+struct SETUP {
+    String mode;
+    bool testing;
+    int throttle_packets;
+    int throttle_minutes;
+    int single_radius;
+    int group_radius;
+    int group_inrange;
+    int group_lowerlimit;
+}; 
 struct mh_group
 {
     String name = "";
@@ -47,6 +58,14 @@ public:
         DeserializationError error = deserializeJson(this->config, config);
         this->throttle[this->config["throttle"]["packets"]];
         this->backgroundmode = backgroundmode;
+        myconfig.group_inrange = this->config["group"]["inrange"];
+        myconfig.group_lowerlimit = this->config["group"]["lowerlimit"];
+        myconfig.group_radius = this->config["group"]["radius"];
+        myconfig.mode = (this->config["mode"]);
+        myconfig.testing = bool(this->config["testing"]);
+        myconfig.single_radius = this->config["single"]["radius"];
+
+
     }
 
     bool dynamicfilter::needsrun()
@@ -59,12 +78,12 @@ public:
     {
         String oldfilter = this->dynfilter;
         this->mhlisttimeout();
-        if (this->config['mode'] == "singel")
+        if (this->myconfig.mode == "singel")
         {
             this->process_single();
         }
 
-        if (this->config['mode'] == "group" && sizeof(this->mhlist) < this->config['group']['lowerlimit'])
+        if (this->myconfig.mode == "group" && sizeof(this->mhlist) < this->myconfig.group_lowerlimit)
         {
             this->process_single();
         }
@@ -91,14 +110,14 @@ public:
         th_entry nowentry;
         nowentry.timestamp = tsnow;
         // remove oldest from list if outside minutes
-        if (((nowentry.timestamp - this->throttle.at(0).timestamp) / 60000) > this->config["throttle"]["minutes"])
+        if (((nowentry.timestamp - this->throttle.at(0).timestamp) / 60000) > this->myconfig.throttle_minutes)
         {
             // remove oldest from list
             this->throttle.erase(this->throttle.begin());
         }
 
         // true if we are lower packets limit
-        if (sizeof(this->throttle) < sizeof(this->config["throttle"]["packets"]))
+        if (sizeof(this->throttle) < this->myconfig.throttle_packets)
         {
             // add nowtimestamp at the end of throttle
             this->throttle.push_back(nowentry);
@@ -186,9 +205,9 @@ public:
     void dynamicfilter::mhlisttimeout()
     {
         unsigned long now = millis();
-        if ((now - this->mhlist[0].timestamp) / 60000 > 15)
+        if ((now - this->mhlist.at(0).timestamp) / 60000 > 15)
         {
-            this->delFromListCall(this->mhlist[0].call);
+            this->delFromListCall(this->mhlist.at(0).call);
         }
         this->inputupdated = true;
     }
@@ -202,7 +221,7 @@ private:
     bool backgroundmode = true;
     double group_inrange = 0;
     double single_radius = 0;
-
+    SETUP myconfig;
     MHGROUP mhgroup;
     MHLIST mhlist;
     THLIST throttle;
@@ -219,7 +238,7 @@ private:
 
         for (int i = 0; i < sizeof(mhlist) || i < 8; i++)
         {
-            this->dynfilter = this->dynfilter + "f/" + this->mhlist.at(i).call + "/" + this->single_radius + " ";
+            this->dynfilter = this->dynfilter + "f/" + this->mhlist.at(i).call + "/" + this->myconfig.single_radius + " ";
         }
 
         this->dynfilter += this->inifilter;
@@ -244,10 +263,14 @@ private:
                 for (int g = 0; g < mhgroup.size(); g++)
                 {
                     //chech distance between mh_entry and group
-                    if (this->getDistance(this->mhlist.at(i).lat, this->mhlist.at(i).lon, this->mhgroup.at(g).lat, this->mhgroup.at(g).lon) < this->group_inrange)
+                    if (this->getDistance(this->mhlist.at(i).lat, this->mhlist.at(i).lon, this->mhgroup.at(g).lat, this->mhgroup.at(g).lon) < this->myconfig.group_inrange)
                     {
                         // add entry to existing group
                         this->mhlist.at(i).group = g;
+                        latlon newcenter = this->getCenter(this->mhlist.at(i).lat, this->mhlist.at(i).lon, this->mhgroup.at(g).lat, this->mhgroup.at(g).lon);
+                        this->mhgroup.at(g).lat = newcenter.lat;
+                        this->mhgroup.at(g).lon = newcenter.lon;
+                        
                     }
                 }
             }
@@ -259,11 +282,14 @@ private:
                 {
                     //check if y has already a group
                     if( ! this->mhlist.at(y).group > 0) {
-                    if (this->getDistance(this->mhlist.at(i).lat, this->mhlist.at(i).lon, this->mhlist.at(y).lat, this->mhlist.at(y).lon) < this->group_inrange)
+                    if (this->getDistance(this->mhlist.at(i).lat, this->mhlist.at(i).lon, this->mhlist.at(y).lat, this->mhlist.at(y).lon) < this->myconfig.group_inrange)
                     {
                         // found a new group member
                         if(!this->mhlist.at(i).group == 0) {
-                          this->mhlist.at(y).group = this->mhlist.at(i).group   ;  
+                          this->mhlist.at(y).group = this->mhlist.at(i).group   ; 
+                        latlon newcenter = this->getCenter(this->mhlist.at(i).lat, this->mhlist.at(i).lon, this->mhgroup.at(this->mhlist.at(y).group).lat, this->mhgroup.at(this->mhlist.at(y).group).lon);
+                        this->mhgroup.at(y).lat = newcenter.lat;
+                        this->mhgroup.at(y).lon = newcenter.lon;  
 
                         } else {
                         //found a new group
@@ -280,23 +306,11 @@ private:
                     }
                 }
             }
-            /*
-            if (sizeof(mh_group) == 0 && i == 0)
-            {
-                this->mhgroup[0].lat = this->mhlist[0].lat;
-                this->mhgroup[0].lon = this->mhlist[0].lon;
-                this->mhlist[0].group = 1;
-            }
-            else
-            {
-                for (int y = 0; y < sizeof(this->mhgroup); y++)
-                {
-                    if (this->getDistance(this->mhgroup[y].lat, this->mhgroup[y].lon, this->mhlist[i].lat, this->mhlist[i].lon) < this->config['group']['inrange'].toDouble())
-                    {
-                    }
-                }
-            }
-            */
+            //build the grousfilter
+            for (int i = 0; i < this->mhgroup.size(); i++)
+        {
+            this->dynfilter = this->dynfilter + "r/" + this->mhgroup.at(i).lat + "/" + this->mhgroup.at(i).lon + "/"+ this->myconfig.group_radius + " ";
+        }
         }
 
         this->dynfilter += this->inifilter;
