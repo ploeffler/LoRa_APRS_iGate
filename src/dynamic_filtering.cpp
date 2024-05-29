@@ -8,7 +8,7 @@
 
 struct SETUP
 {
-    String mode = "";
+    const char* mode = "";
     bool testing;
     int throttle_packets;
     int throttle_minutes;
